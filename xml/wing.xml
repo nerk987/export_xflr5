@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE explane>
+<explane version="1.0">
+    <Units>
+        <length_unit_to_meter>1</length_unit_to_meter>
+        <mass_unit_to_kg>1</mass_unit_to_kg>
+    </Units>
+    <wing>
+        <Name>Main Wing</Name>
+        <Type>MAINWING</Type>
+        <Color>
+            <red>123</red>
+            <green>156</green>
+            <blue>130</blue>
+            <alpha>255</alpha>
+        </Color>
+        <Description></Description>
+        <Position>          0,           0,           0</Position>
+        <Tilt_angle>  0.000</Tilt_angle>
+        <Symetric>true</Symetric>
+        <isFin>false</isFin>
+        <isDoubleFin>false</isDoubleFin>
+        <isSymFin>false</isSymFin>
+        <Inertia>
+            <Volume_Mass>  0.000</Volume_Mass>
+        </Inertia>
+        <Sections>
+            <Section>
+                <y_position>  0.000</y_position>
+                <Chord>  0.180</Chord>
+                <xOffset>  0.000</xOffset>
+                <Dihedral>  0.000</Dihedral>
+                <Twist>  0.000</Twist>
+                <x_number_of_panels>13</x_number_of_panels>
+                <x_panel_distribution>COSINE</x_panel_distribution>
+                <y_number_of_panels>19</y_number_of_panels>
+                <y_panel_distribution>INVERSE SINE</y_panel_distribution>
+                <Left_Side_FoilName>Spline Foil</Left_Side_FoilName>
+                <Right_Side_FoilName>Spline Foil</Right_Side_FoilName>
+            </Section>
+            <Section>
+                <y_position>  1.000</y_position>
+                <Chord>  0.110</Chord>
+                <xOffset>  0.070</xOffset>
+                <Dihedral>  0.000</Dihedral>
+                <Twist>  0.000</Twist>
+                <x_number_of_panels>13</x_number_of_panels>
+                <x_panel_distribution>COSINE</x_panel_distribution>
+                <y_number_of_panels>5</y_number_of_panels>
+                <y_panel_distribution>UNIFORM</y_panel_distribution>
+                <Left_Side_FoilName>Spline Foil</Left_Side_FoilName>
+                <Right_Side_FoilName>Spline Foil</Right_Side_FoilName>
+            </Section>
+        </Sections>
+    </wing>
+</explane>
