@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Export XFlr5",
     "author": "Ian Huish",
-    "version": (1, 00, 0),
+    "version": (1, 01, 0),
     "blender": (3, 00, 0),
     "location": "Export > XFlr5",
     "description": "Export Plane model to XFlr5",
@@ -10,6 +10,8 @@ bl_info = {
     "tracker_url": "http://github.com/nerk987/export_xflr5/issues",
     "category": "Export",
 }
+
+#v1.01 One airfoil exported if meshes of tip and root have the same name
 
 import bpy
 import bmesh
@@ -280,7 +282,7 @@ class ExportXFlr5(bpy.types.Operator, ExportHelper):
             ET.SubElement(newSection, "Right_Side_FoilName").text = airfoilname2
 
             #Write an Airfoil Dat file
-            if (i == 0) or (RootAirfoil.name != TipAirfoil.name):
+            if (i == 0) or ((RootAirfoil.name != TipAirfoil.name) and (RootAirfoil.data.name != TipAirfoil.data.name)):
                 WriteDatFile(self.filepath, RootAirfoil, TipAirfoil, InterpCoord[2], ThicknessVal, i)
                 print("Thickness Value: ", ThicknessVal)
 
