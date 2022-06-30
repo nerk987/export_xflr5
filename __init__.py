@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Export XFlr5",
     "author": "Ian Huish",
-    "version": (1, 01, 0),
+    "version": (1, 1, 0),
     "blender": (3, 00, 0),
     "location": "Export > XFlr5",
     "description": "Export Plane model to XFlr5",
