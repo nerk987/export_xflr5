@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Export XFlr5",
     "author": "Ian Huish",
-    "version": (1, 1, 0),
+    "version": (1, 2, 0),
     "blender": (3, 00, 0),
     "location": "Export > XFlr5",
     "description": "Export Plane model to XFlr5",
@@ -11,7 +11,7 @@ bl_info = {
     "category": "Export",
 }
 
-#v1.01 One airfoil exported if meshes of tip and root have the same name
+#v1.02 Handle fin
 
 import bpy
 import bmesh
@@ -42,6 +42,8 @@ def Vec2co(vec):
     return [vec.x, vec.y, vec.z]
 
 def SampleCurve(curve, fraction, start):
+    if curve == None:
+        return [[0,0,0],0]
     #determine resolution
     res = 100
     
@@ -112,6 +114,7 @@ def WriteDatFile(filepath, root, tip, factor, thickness, i):
     f = open(filename, 'w', encoding='utf-8')
     f.write(airfoilName + "\n")
     j = 0
+    #TODO - check if the root and tip have the same number of vertices
     for vert in root.data.vertices:
         co_root = root.data.vertices[j].co
         co_tip = tip.data.vertices[j].co
@@ -168,16 +171,32 @@ class ExportXFlr5(bpy.types.Operator, ExportHelper):
         #Get data from the main Geo Node interface
         surface = context.object
         RootAirfoil = surface.modifiers["GeometryNodes"]["Input_4"]
-        TipAirfoil = surface.modifiers["GeometryNodes"]["Input_5"]
+        try:
+            TipAirfoil = surface.modifiers["GeometryNodes"]["Input_5"]
+        except:
+            TipAirfoil = RootAirfoil
         Leading = surface.modifiers["GeometryNodes"]["Input_6"]
         Trailing = surface.modifiers["GeometryNodes"]["Input_7"]
-        Twist = surface.modifiers["GeometryNodes"]["Input_10"]
-        TwistCenter = surface.modifiers["GeometryNodes"]["Input_11"]
-        Interpolate = surface.modifiers["GeometryNodes"]["Input_13"]
+        try:
+            Twist = surface.modifiers["GeometryNodes"]["Input_10"]
+        except:
+            Twist = None
+        try:
+            TwistCenter = surface.modifiers["GeometryNodes"]["Input_11"]
+        except:
+            TwistCenter = None
+        try:
+            Interpolate = surface.modifiers["GeometryNodes"]["Input_13"]
+        except:
+            Interpolate = None
         RibCount = surface.modifiers["GeometryNodes"]["Input_2"]
         TipRibCount = surface.modifiers["GeometryNodes"]["Input_8"]
         TipFraction = surface.modifiers["GeometryNodes"]["Input_9"]
-        Thickness = surface.modifiers["GeometryNodes"]["Input_16"]
+        try:
+            Thickness = surface.modifiers["GeometryNodes"]["Input_18"]
+        except:
+            Thickness = None
+        
         
         #Get path of wing.xml file included with the addon
         if platform.system() == 'Windows':
@@ -206,6 +225,11 @@ class ExportXFlr5(bpy.types.Operator, ExportHelper):
         
         #record wing location
         wing.find("Position").text = "{0:.2f}, {1:.2f}, {2:.2f}".format(ob.location[1], ob.location[0], ob.location[2])
+        
+        #handle fin
+        if ob.modifiers["GeometryNodes"].node_group.name[:3] == "Fin":
+            print("fin!")
+            wing.find("isFin").text = "true"
         
         #Delete all the Sections
         sections = wing.find("Sections")
@@ -254,7 +278,7 @@ class ExportXFlr5(bpy.types.Operator, ExportHelper):
                 Dihed = 0.0
                 
             #Add a new section
-#            print("WingFraction Lead, Trail, Chord: ", WingFract, LeadingCoord[1], TrailingCoord[1], abs(LeadingCoord[1] - TrailingCoord[1]))
+            print("WingFraction Lead, Trail, Chord: ", WingFract, LeadingCoord[1], TrailingCoord[1], abs(LeadingCoord[1] - TrailingCoord[1]))
             newSection = ET.SubElement(sections, "Section")
             ET.SubElement(newSection, "y_position").text = "{0:.3f}".format(abs(LeadingCoord[0]))
             ET.SubElement(newSection, "Chord").text = "{0:.3f}".format(abs(LeadingCoord[1] - TrailingCoord[1]))
@@ -281,8 +305,10 @@ class ExportXFlr5(bpy.types.Operator, ExportHelper):
             ET.SubElement(newSection, "Left_Side_FoilName").text = airfoilname1
             ET.SubElement(newSection, "Right_Side_FoilName").text = airfoilname2
 
+            print("Ready to write an airfoil dat file:", self.filepath,i)
             #Write an Airfoil Dat file
             if (i == 0) or ((RootAirfoil.name != TipAirfoil.name) and (RootAirfoil.data.name != TipAirfoil.data.name)):
+                print("Write an airfoil dat file:", self.filepath,i)
                 WriteDatFile(self.filepath, RootAirfoil, TipAirfoil, InterpCoord[2], ThicknessVal, i)
                 print("Thickness Value: ", ThicknessVal)
 
