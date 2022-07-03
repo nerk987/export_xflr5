@@ -2,7 +2,7 @@
    
 V1.1.0 Blender 3.0 Version
 
-Addon Download : [export_xflr5_v1_02.zip](https://github.com/nerk987/export_xflr/releases/download/v1.2.0/export_xflr5_v1_02.zip) 
+Addon Download : [export_xflr5_v1_02.zip](https://github.com/nerk987/export_xflr5/releases/download/v1.2.0/export_xflr5_v1_02.zip) 
 
 xport a wing created using the 3dpPlaneDesign tools to xFlr5 (Blender 3.0 or higher)
 
