@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Export XFlr5",
     "author": "Ian Huish",
-    "version": (1, 3, 0),
+    "version": (2, 15, 2),
     "blender": (3, 00, 0),
     "location": "Export > XFlr5",
     "description": "Export Plane model to XFlr5",
@@ -114,14 +114,17 @@ def WriteDatFile(filepath, root, tip, factor, thickness, i):
     f = open(filename, 'w', encoding='utf-8')
     f.write(airfoilName + "\n")
     j = 0
-    #TODO - check if the root and tip have the same number of vertices
+    #Check that the root and tip airfoils have the same number of vertices
+    if len(root.data.vertices) != len(tip.data.vertices):
+        return -1
     for vert in root.data.vertices:
         co_root = root.data.vertices[j].co
         co_tip = tip.data.vertices[j].co
         co_merge = interp(co_root, co_tip, factor, thickness)
         f.write("{:.7f}".format(co_merge[1]) + " " + "{:.7f}".format(co_merge[2]) + "\n")
         j = j+1
-    f.close()    
+    f.close()
+    return 0    
 
 
 
@@ -149,6 +152,7 @@ class ExportXFlr5(bpy.types.Operator, ExportHelper):
         #Check the correct object type is selected and finish with an error if not
         ob = context.active_object
         err = False
+        isFin = False
         if ob == None:
             err = True
         elif "GeometryNodes" not in ob.modifiers:
@@ -159,7 +163,7 @@ class ExportXFlr5(bpy.types.Operator, ExportHelper):
             err = True
             
         if err:        
-            self.report({"WARNING"}, "Couldn't find a Geo Node modifier with node 'WingV2', 'FinV2', 'WingV3', or 'FinV3' on the currently selected object")
+            self.report({"WARNING"}, "Couldn't find a Geo Node modifier with node 'WingV2' or 'FinV2' on the currently selected object")
             return {'FINISHED'}
         
         #Define span panels per meter etc
@@ -196,18 +200,12 @@ class ExportXFlr5(bpy.types.Operator, ExportHelper):
             RootCount = surface.modifiers["GeometryNodes"]["Input_22"]
             RootFraction = surface.modifiers["GeometryNodes"]["Input_23"]
         except:
-            RootCount = 0.0
+            RootCount = -1
             RootFraction = 0.0
         try:
             Thickness = surface.modifiers["GeometryNodes"]["Input_18"]
         except:
             Thickness = None
-        
-        #Check that Root and Tip airfoils have the same vertex count
-        if len(RootAirfoil.data.vertices) != len(TipAirfoil.data.vertices):
-            self.report({"WARNING"}, "Different number of verticies in Root and Tip airfoils")
-            return {'FINISHED'}
-        
         
         
         #Get path of wing.xml file included with the addon
@@ -235,13 +233,15 @@ class ExportXFlr5(bpy.types.Operator, ExportHelper):
         if wing == None:
             return {'FINISHED'}
         
-        #record wing location
-        wing.find("Position").text = "{0:.2f}, {1:.2f}, {2:.2f}".format(ob.location[1], ob.location[0], ob.location[2])
-        
         #handle fin
         if ob.modifiers["GeometryNodes"].node_group.name[:3] == "Fin":
             print("fin!")
             wing.find("isFin").text = "true"
+            isFin = True
+        
+        #record wing location, now including leading edge data
+        [LeadingCoord, LeadingStart]  = SampleCurve(Leading, 0.0,0)
+        wing.find("Position").text = "{0:.2f}, {1:.2f}, {2:.2f}".format(ob.location[1], ob.location[0], ob.location[2] + LeadingCoord[2])
         
         #Delete all the Sections
         sections = wing.find("Sections")
@@ -255,19 +255,22 @@ class ExportXFlr5(bpy.types.Operator, ExportHelper):
         LeadingStart = 0
         TrailingStart = 0
         
+        #Handle version 1 of the Wing Object
+        if RootCount < 2:
+            RootCountTot = 0
+            RootFraction = 0.0
+        else:
+            RootCountTot = RootCount - 1
+        
 
         #For each rib, add a new Section
-	if RootCount < 2:
-		RootCountTot = 1
-	else
-		RootCountTot = RootCount - 1
-        for i in range(RootCountTot  + RibCount + TipRibCount): #Number of sections ie Total ribs - 1
-            #Determine location of this section (RootCount-1 because the first rib is free!)
+        for i in range(RootCountTot + RibCount + TipRibCount):
+            #Determine location of this section
             WingFract = 1.0 -((RootFraction)*RootInc/(RootCount-1) + (1-TipFraction-RootFraction)*RibInc/(RibCount) + TipFraction*TipInc/(TipRibCount))
             
-	    print("")
-            print("Start: Tip Count, Rib Count: ", TipInc, RibInc)
-            #print("Adding section: ", WingFract, RibInc, TipInc)
+            print("")
+            print("Tip Count, Rib Count, Root Count, i: ", TipInc, RibInc, RootInc, i)
+            #print("Adding section: ", WingFract, RibInc, TipInc, RootInc)
             if RootInc <= RootCount-1.5:
                 RootInc = RootInc + 1
             elif RibInc <= RibCount-0.5:
@@ -282,12 +285,21 @@ class ExportXFlr5(bpy.types.Operator, ExportHelper):
             [TwistCoord, TwistStart]  = SampleCurve(Twist, WingFract, 0)
             [ThicknessCoord, ThicknessStart]  = SampleCurve(Thickness, WingFract, 0)
             ThicknessVal = ThicknessCoord[2] * 25.0 + 1.0
+            if isFin:
+                temp = LeadingCoord[0]
+                LeadingCoord[0] = LeadingCoord[2]
+                LeadingCoord[2] = temp
 
             #Look at the next section for dihedral and panel count
-            if i < (RootCount + RibCount + TipRibCount - 1):
+            if i < (RootCountTot + RibCount + TipRibCount):
                 WingFractNext = 1.0 -((RootFraction)*RootInc/(RootCount-1) + (1-TipFraction-RootFraction)*RibInc/(RibCount) + TipFraction*TipInc/(TipRibCount))
                 [LeadingCoordNext, LeadingStartNext]  = SampleCurve(Leading, WingFractNext,0)
                 [TrailingCoordNext, TrailingStartNext]  = SampleCurve(Trailing, WingFractNext,0)
+                if isFin:
+                    temp = LeadingCoordNext[0]
+                    LeadingCoordNext[0] = LeadingCoordNext[2]
+                    LeadingCoordNext[2] = temp
+                    
                 Dihed = degrees(atan(abs(LeadingCoordNext[2]-LeadingCoord[2])/abs(LeadingCoordNext[0]-LeadingCoord[0])))
                 xpanels = max(MinChordPanels, int(ChordPanels * abs(LeadingCoord[1]-TrailingCoord[1])))
                 ypanels = max(MinSpanPanels, int(SpanPanels * abs(LeadingCoordNext[0] - LeadingCoord[0])))
@@ -298,8 +310,8 @@ class ExportXFlr5(bpy.types.Operator, ExportHelper):
                 Dihed = 0.0
                 
             #Add a new section
-            print("End: Tip Count, Rib Count: ", TipInc, RibInc)
-            print("WingFraction S, E,  Lead, Trail, Chord: ", WingFract, WingFractNext, LeadingCoord[1], TrailingCoord[1], abs(LeadingCoord[1] - TrailingCoord[1]))
+            print("WingFraction next Lead, Trail, Chord: ", WingFract, WingFractNext, LeadingCoord[1], TrailingCoord[1], abs(LeadingCoord[1] - TrailingCoord[1]))
+            print("Y Value: ", LeadingCoord[0])
             newSection = ET.SubElement(sections, "Section")
             ET.SubElement(newSection, "y_position").text = "{0:.3f}".format(abs(LeadingCoord[0]))
             ET.SubElement(newSection, "Chord").text = "{0:.3f}".format(abs(LeadingCoord[1] - TrailingCoord[1]))
@@ -312,14 +324,16 @@ class ExportXFlr5(bpy.types.Operator, ExportHelper):
             ET.SubElement(newSection, "y_panel_distribution").text = "INVERSE SINE"
             
             #Handle airfoils
+            MultiAirfoil = ((RootAirfoil.name != TipAirfoil.name) and (RootAirfoil.data.name != TipAirfoil.data.name))
             airfoilPrefix = os.path.basename(self.filepath)[:-4]
-            if RootAirfoil.name == TipAirfoil.name: #Only one airfoil used
+            if not MultiAirfoil: #Only one airfoil used
                 airfoilname1 = airfoilPrefix + '0000'
                 airfoilname2 = airfoilname1
             else:
                 suffix = "{0:04.0f}".format(i)
                 airfoilname1 = airfoilPrefix + suffix
-                if i < RibCount + TipRibCount - 1: #Repeat the last airfoil because it's not a real section
+                if i < (RootCountTot + RibCount + TipRibCount - 1): #Repeat the last airfoil because it's not a real section
+                    print("Writing Last Airfoil")
                     suffix = "{0:04.0f}".format(i+1)
                 airfoilname2 = airfoilPrefix + suffix
                     
@@ -328,9 +342,11 @@ class ExportXFlr5(bpy.types.Operator, ExportHelper):
 
             print("Ready to write an airfoil dat file:", self.filepath,i)
             #Write an Airfoil Dat file
-            if (i == 0) or ((RootAirfoil.name != TipAirfoil.name) and (RootAirfoil.data.name != TipAirfoil.data.name)):
+            if (i == 0) or MultiAirfoil:
                 print("Write an airfoil dat file:", self.filepath,i)
-                WriteDatFile(self.filepath, RootAirfoil, TipAirfoil, InterpCoord[2], ThicknessVal, i)
+                if WriteDatFile(self.filepath, RootAirfoil, TipAirfoil, InterpCoord[2], ThicknessVal, i) != 0:
+                    self.report({"WARNING"}, "Root and tip airfoils must have the same number of vertices")
+                    return {'FINISHED'}        
                 print("Thickness Value: ", ThicknessVal)
 
 #Write the airfoil for the tip
@@ -385,7 +401,7 @@ class xFlr5Panel(bpy.types.Panel):
             return False
         if ob.modifiers["GeometryNodes"].node_group == None:
             return False
-        if ob.modifiers["GeometryNodes"].node_group.name  not in ["WingV2", "FinV2"]:
+        if ob.modifiers["GeometryNodes"].node_group.name  not in ["WingV2", "FinV2", "WingV3", "FinV3"]:
             return False
         
         return True
