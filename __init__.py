@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Export XFlr5",
     "author": "Ian Huish",
-    "version": (2, 15, 2),
+    "version": (2, 15, 3),
     "blender": (3, 00, 0),
     "location": "Export > XFlr5",
     "description": "Export Plane model to XFlr5",
@@ -11,7 +11,7 @@ bl_info = {
     "category": "Export",
 }
 
-#v1.02 Handle fin
+#v2.15.3 Panel Improvements and Interp Fix
 
 import bpy
 import bmesh
@@ -235,7 +235,7 @@ class ExportXFlr5(bpy.types.Operator, ExportHelper):
         
         #handle fin
         if ob.modifiers["GeometryNodes"].node_group.name[:3] == "Fin":
-            print("fin!")
+            #print("fin!")
             wing.find("isFin").text = "true"
             isFin = True
         
@@ -268,8 +268,8 @@ class ExportXFlr5(bpy.types.Operator, ExportHelper):
             #Determine location of this section
             WingFract = 1.0 -((RootFraction)*RootInc/(RootCount-1) + (1-TipFraction-RootFraction)*RibInc/(RibCount) + TipFraction*TipInc/(TipRibCount))
             
-            print("")
-            print("Tip Count, Rib Count, Root Count, i: ", TipInc, RibInc, RootInc, i)
+            #print("")
+            #print("Tip Count, Rib Count, Root Count, i: ", TipInc, RibInc, RootInc, i)
             #print("Adding section: ", WingFract, RibInc, TipInc, RootInc)
             if RootInc <= RootCount-1.5:
                 RootInc = RootInc + 1
@@ -301,17 +301,20 @@ class ExportXFlr5(bpy.types.Operator, ExportHelper):
                     LeadingCoordNext[2] = temp
                     
                 Dihed = degrees(atan(abs(LeadingCoordNext[2]-LeadingCoord[2])/abs(LeadingCoordNext[0]-LeadingCoord[0])))
-                xpanels = max(MinChordPanels, int(ChordPanels * abs(LeadingCoord[1]-TrailingCoord[1])))
-                ypanels = max(MinSpanPanels, int(SpanPanels * abs(LeadingCoordNext[0] - LeadingCoord[0])))
-                print("Xpanels, ypanels: ", xpanels, ypanels)
-                print("Spans: ", LeadingCoordNext[0], LeadingCoord[0], abs(LeadingCoordNext[0] - LeadingCoord[0]), int(SpanPanels * abs(LeadingCoordNext[0] - LeadingCoord[0])))
-                print("Chords: ", abs(LeadingCoord[1]-TrailingCoord[1]))
+                # 2_15_3 Improve Panel Distribution
+                SegmentSpan = abs(LeadingCoordNext[0] - LeadingCoord[0])
+                SegmentChord = abs(LeadingCoord[1]-TrailingCoord[1])
+                ypanels = max(MinSpanPanels, int(SpanPanels * SegmentSpan))
+                xpanels = max(MinChordPanels, int(ChordPanels * SegmentChord), int(ypanels * SegmentChord * ChordPanels/(SegmentSpan * SpanPanels)))
+                #print("Xpanels, ypanels: ", xpanels, ypanels)
+                #print("Spans: ", LeadingCoordNext[0], LeadingCoord[0], abs(LeadingCoordNext[0] - LeadingCoord[0]), int(SpanPanels * abs(LeadingCoordNext[0] - LeadingCoord[0])))
+                #print("Chords: ", abs(LeadingCoord[1]-TrailingCoord[1]))
             else:
                 Dihed = 0.0
                 
             #Add a new section
-            print("WingFraction next Lead, Trail, Chord: ", WingFract, WingFractNext, LeadingCoord[1], TrailingCoord[1], abs(LeadingCoord[1] - TrailingCoord[1]))
-            print("Y Value: ", LeadingCoord[0])
+            #print("WingFraction next Lead, Trail, Chord: ", WingFract, WingFractNext, LeadingCoord[1], TrailingCoord[1], abs(LeadingCoord[1] - TrailingCoord[1]))
+            #print("Y Value: ", LeadingCoord[0])
             newSection = ET.SubElement(sections, "Section")
             ET.SubElement(newSection, "y_position").text = "{0:.3f}".format(abs(LeadingCoord[0]))
             ET.SubElement(newSection, "Chord").text = "{0:.3f}".format(abs(LeadingCoord[1] - TrailingCoord[1]))
@@ -333,21 +336,21 @@ class ExportXFlr5(bpy.types.Operator, ExportHelper):
                 suffix = "{0:04.0f}".format(i)
                 airfoilname1 = airfoilPrefix + suffix
                 if i < (RootCountTot + RibCount + TipRibCount - 1): #Repeat the last airfoil because it's not a real section
-                    print("Writing Last Airfoil")
+                    #print("Writing Last Airfoil")
                     suffix = "{0:04.0f}".format(i+1)
                 airfoilname2 = airfoilPrefix + suffix
                     
             ET.SubElement(newSection, "Left_Side_FoilName").text = airfoilname1
             ET.SubElement(newSection, "Right_Side_FoilName").text = airfoilname2
 
-            print("Ready to write an airfoil dat file:", self.filepath,i)
+            #print("Ready to write an airfoil dat file:", self.filepath,i)
             #Write an Airfoil Dat file
             if (i == 0) or MultiAirfoil:
-                print("Write an airfoil dat file:", self.filepath,i)
-                if WriteDatFile(self.filepath, RootAirfoil, TipAirfoil, InterpCoord[2], ThicknessVal, i) != 0:
+                #print("Write an airfoil dat file:", self.filepath,i)
+                if WriteDatFile(self.filepath, RootAirfoil, TipAirfoil, (1-InterpCoord[2]*1000.0), ThicknessVal, i) != 0:
                     self.report({"WARNING"}, "Root and tip airfoils must have the same number of vertices")
                     return {'FINISHED'}        
-                print("Thickness Value: ", ThicknessVal)
+                #print("Thickness Value, Interp: ", ThicknessVal, InterpCoord[2]*1000.0)
 
 #Write the airfoil for the tip
 #        WriteDatFile(self.filepath, RootAirfoil, TipAirfoil, InterpCoord[2], i+1)
